@@ -2,12 +2,6 @@ name: Build
 
 on:
    workflow_dispatch:
-    inputs:
-        ipa_url:
-            description: "Direct link to the decrypted IPA"
-            default: ""
-            required: true
-            type: string
 
 jobs:
   build-tweak:
@@ -50,70 +44,3 @@ jobs:
         with:
           name: "rootless package"
           path: ${{ github.workspace }}/packages/*-arm64.deb
-
-  build-ipa:
-    runs-on: macos-14
-    needs: build-tweak
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-
-      - name: Download and Unzip Orion
-        run: |
-          curl -L -o Orion.zip https://github.com/theos/orion/releases/download/1.0.1/Orion_1.0.1.zip
-          unzip Orion.zip
-
-      - name: Download Discord IPA
-        run: |
-          curl -L -o discord.ipa ${{ github.event.inputs.ipa_url }}
-
-      - name: Make patcher directory
-        run: |
-          mkdir patcher
-  
-      - name: Download IPA patcher
-        working-directory: patcher
-        run: |
-          curl -L -o patcher https://github.com/amsyarasyiq/bunny-ipa-patcher/releases/download/release-pyon/patcher.mac-amd64
-          chmod +x patcher
-
-      - name: Download IPA icons
-        working-directory: patcher
-        run: |
-          curl -L -o ipa-icons.zip https://raw.githubusercontent.com/pyoncord/assets/main/ipa-icons.zip
-
-      - name: Extract Values
-        run: |
-          NAME=$(grep '^Name:' control | cut -d ' ' -f 2)
-          PACKAGE=$(grep '^Package:' control | cut -d ' ' -f 2)
-          VERSION=$(grep '^Version:' control | cut -d ' ' -f 2)
-          DEB_FILE_NAME="${PACKAGE}_${VERSION}_iphoneos-arm.deb"
-          echo "DEB_FILE_NAME=$DEB_FILE_NAME" >> $GITHUB_ENV
-          echo "APP_NAME=$NAME" >> $GITHUB_ENV
-
-      - name: Inject tweak
-        run: |
-          mkdir -p ${{ github.workspace }}/build
-          git clone https://github.com/Al4ise/Azule.git
-          ./Azule/azule -i discord.ipa -o ${{ github.workspace }}/build -f ${{ github.workspace }}/dev.theos.orion14_1.0.1_iphoneos-arm.deb ${{ github.workspace }}/${{ env.DEB_FILE_NAME }}
-          mv "${{ github.workspace }}/build/"*.ipa "${{ github.workspace }}/build/${{ env.APP_NAME }}.ipa"
-
-      - name: Patch Discord
-        working-directory: patcher
-        run : |
-          ./patcher \
-            -d ${{ github.workspace }}/build/${{ env.APP_NAME }}.ipa \
-            -o ${{ github.workspace }}/build/${{ env.APP_NAME }}.ipa \
-            -i ./ipa-icons.zip
-  
-      - name: Upload ipa as artifact
-        uses: actions/upload-artifact@v4
-        with:
-            name: ipa
-            path: ${{ github.workspace }}/build/${{ env.APP_NAME }}.ipa
